@@ -3,6 +3,7 @@
 from fastapi import FastAPI,status,HTTPException
 from typing import Optional
 import asyncio
+from pydantic import BaseModel,Field
 
 # 2. Inicialización APP
 app=FastAPI(
@@ -17,6 +18,12 @@ usuarios=[
     {"id":2,"nombre":"Diego","edad":20},
     {"id":3,"nombre":"Ivan","edad":20},
 ]
+
+#Modelo de validaciones
+class crear_usuario(BaseModel):
+    id: int = Field(...,gt=0, description="Identificador de usuario")
+    nombre:str= Field(..., min_length=3,max_length=50, example="Juanito")
+    edad: int = Field(..., ge=1,le=123,description="Edad valida entre 1 y 123")
 
 # 3. Endpoints
 @app.get("/",tags=['Inicio'])    #etiqueta
@@ -65,19 +72,18 @@ async def consultaT():
         "data":usuarios
     }
 
-@app.post("/v1/usuarios/",tags=['CRUD HTTP'])   
-async def crea_usuario(usuario:dict):
+@app.post("/v1/usuarios/",tags=['CRUD HTTP'],status_code=status.HTTP_201_CREATED)
+async def crear_usuario(usuario:crear_usuario):
     for usr in usuarios:
-        if usr["id"] == usuario.get("id"):
+        if usr["id"] == usuario.id:
             raise HTTPException(
                 status_code=400,
                 detail="El id ya existe"
             )
     usuarios.append(usuario)
     return{
-        "mensaje":"Usuario agregado correctamente",
-        "status":"200",
-        "usuario":usuario
+        "mensaje":"Usuario Agregado",
+        "Usuario":usuario
     }
 
 @app.put("/v1/usuarios/",tags=['CRUD HTTP'])
@@ -110,4 +116,6 @@ async def eliminar_usuario(usuario:dict):
             status_code=400,
             detail="El id no existe"
     )
+
+
     
