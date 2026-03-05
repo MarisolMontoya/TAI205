@@ -1,9 +1,11 @@
 
 # 1. Importaciones
-from fastapi import FastAPI,status,HTTPException
+from fastapi import FastAPI,status,HTTPException,Depends
 from typing import Optional
 import asyncio
 from pydantic import BaseModel,Field
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+import secrets
 
 # 2. Inicialización APP
 app=FastAPI(
@@ -24,6 +26,21 @@ class crear_usuario(BaseModel):
     id: int = Field(...,gt=0, description="Identificador de usuario")
     nombre:str= Field(..., min_length=3,max_length=50, example="Juanito")
     edad: int = Field(..., ge=1,le=123,description="Edad valida entre 1 y 123")
+
+
+# Seguridad HTTP BASIC
+seguridad=HTTPBasic()
+
+def verificar_peticion(credenciales:HTTPBasicCredentials=Depends(seguridad)):
+    userAuth=secrets.compare_digest(credenciales.username,"marisolmontoya")
+    passAuth=secrets.compare_digest(credenciales.password,"123456")
+
+    if not(userAuth and passAuth ):
+        raise HTTPException(
+            status_code = status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales no autorizadas."
+        )
+    return credenciales.username
 
 # 3. Endpoints
 @app.get("/",tags=['Inicio'])    #etiqueta
@@ -101,21 +118,21 @@ async def actualiza_usuario(usuario:dict):
             detail="El id no existe"
     )
 
-
-@app.delete("/v1/usuarios/",tags=['CRUD HTTP'])
-async def eliminar_usuario(usuario:dict):
+# Modificamos 
+@app.delete("/v1/usuarios/{id}", tags=['CRUD HTTP'])
+async def eliminar_usuario(id: int,userAuth: str = Depends(verificar_peticion)):
     for usr in usuarios:
-        if usr["id"] == usuario.get("id"):
-            usuarios.remove(usr)
-            return{
-                "mensaje":"Usuario eliminado correctamente",
-                "status":"200",
-                "usuario":usuario
-             }
+        if usr["id"] == id:
+            index = usuarios.index(usr)
+            usuarios.pop(index)
+            return {
+                "mensaje": f"Usuario eliminado por {userAuth}",
+                "status": "200",
+                "usuario_eliminado": usr
+            }
     raise HTTPException(
-            status_code=400,
-            detail="El id no existe"
+        status_code=404,
+        detail="Usuario no encontrado"
     )
-
 
     
