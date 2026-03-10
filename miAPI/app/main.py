@@ -80,7 +80,7 @@ async def consultaOp(id:Optional[int]=None):
         return {"Mensaje":"usuario no encontrado"}
     else:
         return {"Aviso":"No se proporciono Id"}
-    
+#Leer y obtener datos    
 @app.get("/v1/usuarios/",tags=['CRUD HTTP'])   
 async def consultaT():
     return{
@@ -88,7 +88,7 @@ async def consultaT():
         "total":len(usuarios),
         "data":usuarios
     }
-
+#Crear
 @app.post("/v1/usuarios/",tags=['CRUD HTTP'],status_code=status.HTTP_201_CREATED)
 async def crear_usuario(usuario:crear_usuario):
     for usr in usuarios:
@@ -102,7 +102,7 @@ async def crear_usuario(usuario:crear_usuario):
         "mensaje":"Usuario Agregado",
         "Usuario":usuario
     }
-
+#actualizar
 @app.put("/v1/usuarios/",tags=['CRUD HTTP'])
 async def actualiza_usuario(usuario:dict):
     for i, usr in enumerate(usuarios):
@@ -118,7 +118,7 @@ async def actualiza_usuario(usuario:dict):
             detail="El id no existe"
     )
 
-# Modificamos 
+# DELETE          Modificamos 
 @app.delete("/v1/usuarios/{id}", tags=['CRUD HTTP'])
 async def eliminar_usuario(id: int,userAuth: str = Depends(verificar_peticion)):
     for usr in usuarios:
