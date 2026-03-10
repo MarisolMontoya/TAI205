@@ -1,0 +1,9 @@
+services:
+  api:
+    build: .
+    container_name: server_Examen
+    ports:
+      - "7000:8000"
+    
+    volumes:
+      - ./app:/app/app

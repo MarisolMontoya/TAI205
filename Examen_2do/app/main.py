@@ -15,11 +15,18 @@ app = FastAPI (
 Reservas =[]
 
 # Funcion para credenciales
-seguridad = HTTPBasicCredentials
+seguridad = HTTPBasic
 
 def verificar_peticion(credenciales:HTTPBasicCredentials=Depends(seguridad)):
     userAuth=secrets.compare_digest(credenciales.username,"hotel")
     passAuth=secrets.compare_digest(credenciales.password,"r2026")
+
+    if not(userAuth and passAuth ):
+        raise HTTPException(
+            status_code = status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales no autorizadas."
+        )
+    return credenciales.username
 
 #Modelos:
 #Huesped
@@ -30,11 +37,12 @@ class reserva(BaseModel):
     fecha_salida:int = field(..., gt=fecha_entrada)
     t_habitacion:literal ["sencilla", "doble", "suite"] = "sencilla"
     estancia: int = field(..., gl=7)
+    status:literal ["confirmado","cancelado"] = "confirmado"
 
 
 #Endpoints
 # CREAR reserva (POST) con SEGURIDAD
-@app.post("/v1/crear_reserva", tags=['CRUD Hotel'])
+@app.post("/v1/crear_reserva", tags=["CRUD Hotel"])
 async def crear_reserva(reserva: Reserva,userAuth: str = Depends(verificar_peticion)):
     for l in Reservas:
         if l.id() == reserva.id():
@@ -49,7 +57,7 @@ async def crear_reserva(reserva: Reserva,userAuth: str = Depends(verificar_petic
     }
 
 # LISTAR RESERVAS (GET)
-@app.get("/v1/ver_reservas", tags = ['CRUD Hotel'])
+@app.get("/v1/ver_reservas", tags = ["CRUD Hotel"])
 async def listar_reservas():
     return{
         "status": "200",
@@ -58,9 +66,39 @@ async def listar_reservas():
     }
 
 #Consultar por ID (GET{id})
-@app.get("/v1/consultar_reserva_id{id}", tags = ['CRUD Hotel'])
+@app.get("/v1/consultar_reserva_id{id}", tags = ["CRUD Hotel"])
 async def consultar_reservas(id:int):
-    for reserva in Reservas
+    for reserva in Reservas:
+        if reserva.id()== id():
+            return reserva
+    raise HTTPException(
+        status_code = 400,
+        detail="Id no encontrado"
+    )
 
 # Confirmar reserva (PUT: actualizar estado)
-#Cancelar reservas (DELETE: actualizar estado) con SEGURIDAD
+@app.put("/v1/confirmar_reserva {id}",tags=["CRUD Hotel"])
+async def confirmar_reserva(id:int):
+    for l in Reservas:
+        if l.id() == reserva.id():
+            id.status = "confirmado"
+            return {
+                "mensaje": "Reserva confirmada",
+                "status": "200"
+                }
+   
+
+#Cancelar reservas (put: actualizar estado) con SEGURIDAD
+@app.put("/v1/cancelar_reserva{id}", tags=["CRUD Hotel"])
+async def cancelar_reserva(id: int,userAuth: str = Depends(verificar_peticion)):
+    for l in Reservas:
+        if l.id() == reserva.id():
+            id.status = "cancelado"
+            return{
+                "mensaje":"Reserva confirmada",
+                "status":"200"
+            }
+    raise HTTPException(
+        status_code=409,
+        detail="No existe un registro de esta reserva."
+    )
