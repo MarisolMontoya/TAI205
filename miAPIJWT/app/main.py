@@ -4,14 +4,15 @@ from fastapi import FastAPI,status,HTTPException,Depends
 from typing import Optional
 import asyncio
 from pydantic import BaseModel,Field
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-import secrets
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
 
 # 2. Inicialización APP
 app=FastAPI(
-    title='Mi Primer API',
+    title='Mi API con JWT y OAuth2',
     description="Marisol Montoya Botello",
-    version='1.0.0'
+    version='2.0.0'
     )                  #para personalizar
 
 # BD ficticia
@@ -21,6 +22,27 @@ usuarios=[
     {"id":3,"nombre":"Ivan","edad":20},
 ]
 
+#Confiuracion de OAuth2 Y JWT
+SECRET_KEY ="mi_clave_secreta_segura"
+ALGORITHM ="HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES= 30 #tiempo que tendrá para expirarse (30 min)
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+#mi usuario para pruebas
+fake_user={
+    "username":"marisolmontoya",
+    "password":"123456"
+}
+
+#Creación edl token (para crearlo)
+def crear_token(data:dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow()+timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp":expire})
+    token = jwt.encode(to_encode, SECRET_KEY,algorithm=ALGORITHM)
+    return token
+
 #Modelo de validaciones
 class crear_usuario(BaseModel):
     id: int = Field(...,gt=0, description="Identificador de usuario")
@@ -28,21 +50,39 @@ class crear_usuario(BaseModel):
     edad: int = Field(..., ge=1,le=123,description="Edad valida entre 1 y 123")
 
 
-# Seguridad HTTP BASIC
-seguridad=HTTPBasic()
-
-def verificar_peticion(credenciales:HTTPBasicCredentials=Depends(seguridad)):
-    userAuth=secrets.compare_digest(credenciales.username,"marisolmontoya")
-    passAuth=secrets.compare_digest(credenciales.password,"123456")
-
-    if not(userAuth and passAuth ):
-        raise HTTPException(
-            status_code = status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciales no autorizadas."
-        )
-    return credenciales.username
-
 # 3. Endpoints
+
+#ENPOINT para el login y generar el token
+@app.post("/token")
+async def login(form_data:OAuth2PasswordRequestForm = Depends()):
+    if form_data.username != fake_user["username"] or form_data.password != fake_user["password"]:
+        raise HTTPException (status_code=401, detail="Credenciales incorrectas")
+
+    access_token = crear_token({"sub":form_data.username})
+
+    return{
+        "access_token":access_token,
+        "token_type": "bearer"
+    }
+
+# Funcion para validar el token
+def validar_token(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+
+        if username is None:
+            raise HTTPException(status_code=401, detail="El Token es inválido")
+        return username
+    except  JWTError:
+        raise HTTPException(
+            status_code=401,
+            detail="El token es inválido o está expirado",
+            headers={"WWW-Authenticate":"Bearer"}
+        )
+    
+
+#ENDPOINT DE inicio
 @app.get("/",tags=['Inicio'])    #etiqueta
 async def holaMundo():
     return {"mensaje":"Hola mundo FASTAPI"}
@@ -88,6 +128,7 @@ async def consultaT():
         "total":len(usuarios),
         "data":usuarios
     }
+
 #Crear
 @app.post("/v1/usuarios/",tags=['CRUD HTTP'],status_code=status.HTTP_201_CREATED)
 async def crear_usuario(usuario:crear_usuario):
@@ -97,14 +138,14 @@ async def crear_usuario(usuario:crear_usuario):
                 status_code=400,
                 detail="El id ya existe"
             )
-    usuarios.append(usuario)
+    usuarios.append(usuario.dict())
     return{
         "mensaje":"Usuario Agregado",
         "Usuario":usuario
     }
 #actualizar
 @app.put("/v1/usuarios/",tags=['CRUD HTTP'])
-async def actualiza_usuario(usuario:dict):
+async def actualiza_usuario(usuario:dict, user:str=Depends(validar_token)):
     for i, usr in enumerate(usuarios):
         if usr["id"] == usuario.get("id"):
             usuarios[i]=usuario
@@ -120,13 +161,13 @@ async def actualiza_usuario(usuario:dict):
 
 # DELETE          Modificamos 
 @app.delete("/v1/usuarios/{id}", tags=['CRUD HTTP'])
-async def eliminar_usuario(id: int,userAuth: str = Depends(verificar_peticion)):
+async def eliminar_usuario(id:int, user: str=Depends(validar_token)):
     for usr in usuarios:
         if usr["id"] == id:
             index = usuarios.index(usr)
             usuarios.pop(index)
             return {
-                "mensaje": f"Usuario eliminado por {userAuth}",
+                "mensaje": f"Usuario eliminado por {user}",
                 "status": "200",
                 "usuario_eliminado": usr
             }
